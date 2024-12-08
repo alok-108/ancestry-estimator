@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ancestry Estimator</title>
+    <style>
+        :root {
+            --primary-color: #0056b3;
+            --secondary-color: #007bff;
+            --background-light: #f3f4f6;
+            --text-light: #333;
+            --background-dark: #1e1e2f;
+            --text-dark: #e0e0e0;
+            --card-light: #ffffff;
+            --card-dark: #2b2b3d;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--background-light);
+            color: var(--text-light);
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: var(--card-light);
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            transition: background-color 0.3s;
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--primary-color);
+        }
+
+        .theme-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background-color: var(--secondary-color);
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .theme-toggle:hover {
+            background-color: var(--primary-color);
+        }
+
+        form {
+            display: flex;
+            flex-direction: column;
+        }
+
+        label {
+            margin: 10px 0 5px;
+            font-weight: bold;
+        }
+
+        select, button {
+            padding: 10px;
+            margin-bottom: 20px;
+            border: 1px solid #ced4da;
+            border-radius: 5px;
+            font-size: 16px;
+            outline: none;
+        }
+
+        button {
+            background-color: var(--secondary-color);
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.2s;
+        }
+
+        button:hover {
+            background-color: var(--primary-color);
+            transform: translateY(-2px);
+        }
+
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            background-color: #e9ecef;
+            color: #495057;
+            border: 1px solid #ced4da;
+        }
+
+        .charts {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        .chart-container {
+            width: 100%;
+            max-width: 400px;
+        }
+
+        canvas {
+            background-color: #f9f9f9;
+            border: 1px solid #ced4da;
+            border-radius: 8px;
+        }
+
+        .loader {
+            display: none;
+            margin: 20px auto;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid var(--secondary-color);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 15px;
+                margin: 20px;
+            }
+
+            button {
+                font-size: 14px;
+            }
+        }
+
+        body.dark-mode {
+            background-color: var(--background-dark);
+            color: var(--text-dark);
+        }
+
+        body.dark-mode .container {
+            background-color: var(--card-dark);
+        }
+
+        body.dark-mode .result {
+            background-color: var(--card-dark);
+            color: var(--text-dark);
+            border-color: var(--text-dark);
+        }
+    </style>
+</head>
+<body>
+    <button class="theme-toggle" id="themeToggle">Toggle Dark Mode</button>
+    <div class="container" role="main">
+        <h1>Ancestry Estimator</h1>
+        <form id="ancestryForm">
+            <label for="country">Select your country:</label>
+            <select id="country" aria-required="true">
+                <option value="">--Please choose an option--</option>
+            </select>
+
+            <label for="region">Select your region:</label>
+            <select id="region" aria-required="true">
+                <option value="">--Please choose an option--</option>
+            </select>
+
+            <label for="race">Select your race:</label>
+            <select id="race" aria-required="true">
+                <option value="">--Please choose an option--</option>
+            </select>
+
+            <button type="submit">Calculate Ancestry</button>
+        </form>
+        <div class="loader" id="loader"></div>
+        <div class="result" id="result"></div>
+        <div class="charts" id="charts">
+            <div class="chart-container">
+                <canvas id="pieChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <canvas id="barChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const themeToggle = document.getElementById('themeToggle');
+
+            themeToggle.addEventListener('click', () => {
+                document.body.classList.toggle('dark-mode');
+            });
+
+            const countrySelect = document.getElementById('country');
+            const regionSelect = document.getElementById('region');
+            const raceSelect = document.getElementById('race');
+
+            const countries = ["United States", "Canada", "Mexico", "Brazil", "United Kingdom", "Germany", "China", "India", "Nigeria", "South Africa", "Australia"];
+            const regions = ["Arctic", "Salishan", "Ojibwa", "North American", "Athabaskan", "Mexican", "Mayan", "Central American", "Andean", "Amazonian", "Gran Chaco", "Patagonian", "Polynesian", "Sahelian", "North African", "Tropical West African", "African Great Lakes", "Southern African", "Horn of Africa", "Arabian", "Levantine", "Mesopotamian", "Eastern European", "Finnic", "Northwest European", "Mediterranean", "Aegean", "Caucasian", "North Indian", "South Indian", "Tibetan", "Altaian", "Manchurian", "Chinese", "Japanese", "Southeast Asian", "Malay Archipelago", "Australian"];
+            const races = ["Caucasian", "African American", "Asian", "Hispanic", "Native American", "Pacific Islander"];
+
+            countries.forEach(country => countrySelect.innerHTML += `<option value="${country.toLowerCase()}">${country}</option>`);
+            regions.forEach(region => regionSelect.innerHTML += `<option value="${region.toLowerCase().replace(/ /g, '_')}">${region}</option>`);
+            races.forEach(race => raceSelect.innerHTML += `<option value="${race.toLowerCase().replace(/ /g, '_')}">${race}</option>`);
+        });
+
+        document.getElementById('ancestryForm').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const loader = document.getElementById('loader');
+            const resultDiv = document.getElementById('result');
+            const pieChartCanvas = document.getElementById('pieChart');
+            const barChartCanvas = document.getElementById('barChart');
+
+            loader.style.display = 'block';
+            resultDiv.style.display = 'none';
+            clearCharts();
+
+            setTimeout(() => {
+                const country = document.getElementById('country').value;
+                const region = document.getElementById('region').value;
+                const race = document.getElementById('race').value;
+
+                if (!country || !region || !race) {
+                    alert('Please select all fields.');
+                    loader.style.display = 'none';
+                    return;
+                }
+
+                const ancestryPercentage = calculateAncestryPercentage(region, race);
+                displayResult(ancestryPercentage);
+                createPieChart(pieChartCanvas, ancestryPercentage);
+                createBarChart(barChartCanvas, ancestryPercentage);
+                loader.style.display = 'none';
+            }, 1000);
+        });
+
+        function calculateAncestryPercentage(region, race) {
+            return {
+                Caucasian: Math.floor(Math.random() * 50 + 10),
+                African_American: Math.floor(Math.random() * 30 + 5),
+                Asian: Math.floor(Math.random() * 40 + 10),
+                Hispanic: Math.floor(Math.random() * 25 + 5),
+                Native_American: Math.floor(Math.random() * 20 + 10),
+                Pacific_Islander: Math.floor(Math.random() * 15 + 5)
+            };
+        }
+
+        function displayResult(ancestryPercentage) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = `
+                <h3>Estimated Ancestry Percentage</h3>
+                <p><strong>Caucasian:</strong> ${ancestryPercentage.Caucasian}%</p>
+                <p><strong>African American:</strong> ${ancestryPercentage.African_American}%</p>
+                <p><strong>Asian:</strong> ${ancestryPercentage.Asian}%</p>
+                <p><strong>Hispanic:</strong> ${ancestryPercentage.Hispanic}%</p>
+                <p><strong>Native American:</strong> ${ancestryPercentage.Native_American}%</p>
+                <p><strong>Pacific Islander:</strong> ${ancestryPercentage.Pacific_Islander}%</p>
+            `;
+            resultDiv.style.display = 'block';
+        }
+
+        function clearCharts() {
+            document.getElementById('pieChart').getContext('2d').clearRect(0, 0, 400, 400);
+            document.getElementById('barChart').getContext('2d').clearRect(0, 0, 400, 400);
+        }
+
+        function createPieChart(canvas, data) {
+            new Chart(canvas, {
+                type: 'pie',
+                data: {
+                    labels: Object.keys(data),
+                    datasets: [{
+                        label: 'Ancestry Distribution',
+                        data: Object.values(data),
+                        backgroundColor: [
+                            'rgba(255, 99, 132, 0.6)',
+                            'rgba(54, 162, 235, 0.6)',
+                            'rgba(255, 206, 86, 0.6)',
+                            'rgba(75, 192, 192, 0.6)',
+                            'rgba(153, 102, 255, 0.6)',
+                            'rgba(255, 159, 64, 0.6)'
+                        ]
+                    }]
+                }
+            });
+        }
+
+        function createBarChart(canvas, data) {
+            new Chart(canvas, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(data),
+                    datasets: [{
+                        label: 'Ancestry Percentage',
+                        data: Object.values(data),
+                        backgroundColor: 'rgba(75, 192, 192, 0.6)'
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
